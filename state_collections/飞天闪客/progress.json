@@ -1,0 +1,14 @@
+{
+  "status": "finished",
+  "note": "one video processed, no more pending",
+  "destination": "飞天闪客",
+  "source_url": "https://www.bilibili.com/video/BV1mxR9BiEm8/?spm_id_from=333.1387.upload.video_card.click",
+  "queue_total": 1,
+  "queue_index": 1,
+  "updated_at": 1779457170,
+  "updated_at_readable": "2026-05-22 13:39:30",
+  "current_item_id": "0001_BV1mxR9BiEm8",
+  "current_bvid": "BV1mxR9BiEm8",
+  "current_title": "BV1mxR9BiEm8",
+  "current_url": "https://www.bilibili.com/video/BV1mxR9BiEm8"
+}
