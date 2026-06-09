@@ -1,0 +1,149 @@
+name: transcribe-unified
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_type:
+        description: "任务类型：zhangxuefeng_space / bilibili_collection / single_video / youtube_channel"
+        required: true
+        default: "single_video"
+        type: choice
+        options:
+          - zhangxuefeng_space
+          - bilibili_collection
+          - single_video
+          - youtube_channel
+      source_url:
+        description: "来源链接；zhangxuefeng_space 可留空，其他类型必填"
+        required: false
+        default: ""
+        type: string
+      destination:
+        description: "输出目录/文件名前缀；zhangxuefeng_space 可留空，其他类型必填"
+        required: false
+        default: ""
+        type: string
+      platform:
+        description: "single_video 平台：auto / youtube / bilibili"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - youtube
+          - bilibili
+      include_members:
+        description: "youtube_channel 是否包含会员视频/会员直播"
+        required: false
+        default: false
+        type: boolean
+      use_cookies:
+        description: "single_video 是否使用 cookies"
+        required: false
+        default: true
+        type: boolean
+      whisper_model:
+        description: "Whisper 模型，如 tiny / base / small / medium"
+        required: false
+        default: "small"
+        type: string
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: transcribe-unified-${{ inputs.source_type }}-${{ inputs.destination || github.run_id }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      SOURCE_TYPE: ${{ inputs.source_type }}
+      SOURCE_URL: ${{ inputs.source_url }}
+      DESTINATION: ${{ inputs.destination }}
+      PLATFORM: ${{ inputs.platform }}
+      INCLUDE_MEMBERS: ${{ inputs.include_members }}
+      USE_COOKIES: ${{ inputs.use_cookies }}
+      WHISPER_MODEL: ${{ inputs.whisper_model }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${SOURCE_TYPE}" in
+            zhangxuefeng_space)
+              ;;
+            bilibili_collection|single_video|youtube_channel)
+              test -n "${SOURCE_URL}" || (echo "source_url is required for ${SOURCE_TYPE}" && exit 1)
+              test -n "${DESTINATION}" || (echo "destination is required for ${SOURCE_TYPE}" && exit 1)
+              ;;
+            *)
+              echo "Unsupported source_type: ${SOURCE_TYPE}"
+              exit 1
+              ;;
+          esac
+
+          if [ "${SOURCE_TYPE}" = "single_video" ]; then
+            case "${PLATFORM}" in
+              auto|youtube|bilibili) ;;
+              *) echo "Unsupported platform: ${PLATFORM}" && exit 1 ;;
+            esac
+          fi
+
+      - name: Show dispatch summary
+        shell: bash
+        run: |
+          echo "source_type=${SOURCE_TYPE}"
+          echo "source_url=${SOURCE_URL}"
+          echo "destination=${DESTINATION}"
+          echo "platform=${PLATFORM}"
+          echo "include_members=${INCLUDE_MEMBERS}"
+          echo "use_cookies=${USE_COOKIES}"
+          echo "whisper_model=${WHISPER_MODEL}"
+          echo "ref=${GITHUB_REF_NAME}"
+
+      - name: Dispatch existing workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${SOURCE_TYPE}" in
+            zhangxuefeng_space)
+              gh workflow run ".github/workflows/transcribe.yml" \
+                --ref "${GITHUB_REF_NAME}"
+              ;;
+            bilibili_collection)
+              gh workflow run ".github/workflows/transcribe_collection.yml" \
+                --ref "${GITHUB_REF_NAME}" \
+                -f source_url="${SOURCE_URL}" \
+                -f destination="${DESTINATION}" \
+                -f whisper_model="${WHISPER_MODEL}"
+              ;;
+            single_video)
+              gh workflow run ".github/workflows/transcribe_single_video.yml" \
+                --ref "${GITHUB_REF_NAME}" \
+                -f source_url="${SOURCE_URL}" \
+                -f destination="${DESTINATION}" \
+                -f platform="${PLATFORM}" \
+                -f use_cookies="${USE_COOKIES}" \
+                -f whisper_model="${WHISPER_MODEL}"
+              ;;
+            youtube_channel)
+              gh workflow run ".github/workflows/transcribe_youtube_channel.yml" \
+                --ref "${GITHUB_REF_NAME}" \
+                -f channel_url="${SOURCE_URL}" \
+                -f destination="${DESTINATION}" \
+                -f include_members="${INCLUDE_MEMBERS}" \
+                -f whisper_model="${WHISPER_MODEL}"
+              ;;
+          esac
